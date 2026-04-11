@@ -78,7 +78,6 @@ let lang = 'pt';
 let state = { input: '', answers: {}, q: 0, recon: false };
 const QIDS = ['understanding', 'concept', 'execution', 'emotion'];
 
-// AQUI ESTÁ A SUA PERSONALIZAÇÃO NO TEXTO DAS PERGUNTAS
 const T = {
   pt: {
     // ... (restante das traduções iguais)
@@ -99,7 +98,192 @@ const T = {
 };
 
 // Lógica de Renderização e Fluxo (Mesma do Claude, mas conectada)
-// [Aqui entra o JavaScript de P3 que você enviou]
+}
+
+function render(){
+  const d=T[lang];
+  document.getElementById('t-lab').innerHTML=d.lab;
+  document.getElementById('t-h1').innerHTML=d.h1;
+  document.getElementById('t-sub').innerHTML=d.sub;
+  document.getElementById('t-prompt').innerHTML=d.prompt;
+  document.getElementById('user-input').placeholder=d.ph;
+  document.getElementById('t-btn-start').textContent=d.start;
+  document.getElementById('t-loading').textContent=d.loading;
+  document.getElementById('t-footer').textContent=d.footer;
+  const cc=document.getElementById('chips');
+  cc.innerHTML='';
+  d.chips.forEach((label,i)=>{
+    const b=document.createElement('button');
+    b.className='chip'; b.textContent=label;
+    b.onclick=()=>{document.getElementById('user-input').value=d.chipTexts[i];};
+    cc.appendChild(b);
+  });
+}
+
+// ── FRUSTRATION ───────────────────────────────────────────
+function isFrustrated(txt){
+  return ['nada funciona','não adianta','desisti','odeio','nunca','frustrad','não consigo','tentei tudo','inútil','burro','burra','nothing works','frustrated','gave up','useless','hate','impossible','imposible','inútil','odio','siempre me equivoco','no puedo'].some(k=>txt.toLowerCase().includes(k));
+}
+
+// ── CLASSIFY ──────────────────────────────────────────────
+function classify(){
+  const a=state.answers;
+  const s={interpretation:0,conceptual:0,execution:0,emotional:0};
+  if(a.understanding==='no') s.interpretation+=3;
+  if(a.understanding==='partial') s.interpretation+=1.5;
+  if(a.concept==='no') s.conceptual+=3;
+  if(a.concept==='partial') s.conceptual+=1.5;
+  if(a.execution==='yes') s.execution+=3;
+  if(a.execution==='both'){s.execution+=1.5;s.conceptual+=1;}
+  if(a.emotion==='anxious') s.emotional+=3;
+  if(a.emotion==='frustrated') s.emotional+=2;
+  if(state.recon) s.emotional+=1.5;
+  const primary=Object.entries(s).sort((a,b)=>b[1]-a[1])[0][0];
+  const active=Object.entries(s).filter(([,v])=>v>0).map(([k])=>k);
+  return {scores:s,primary,active};
+}
+
+// ── FLOW ──────────────────────────────────────────────────
+function startDiagnosis(){
+  const v=document.getElementById('user-input').value.trim();
+  if(!v){document.getElementById('user-input').focus();return;}
+  state.input=v; state.answers={}; state.q=0; state.recon=isFrustrated(v);
+  document.getElementById('input-phase').style.display='none';
+  document.getElementById('diagnosis-phase').style.display='block';
+  renderQ();
+}
+
+function pick(qid,val,el){
+  state.answers[qid]=val;
+  document.querySelectorAll('.opt').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('next-btn').disabled=false;
+}
+
+function nextQ(){
+  if(!state.answers[QIDS[state.q]]) return;
+  state.q++;
+  const qs=T[lang].qs;
+  if(state.q<qs.length){renderQ();}
+  else{
+    document.getElementById('diagnosis-phase').style.display='none';
+    document.getElementById('loading-phase').style.display='block';
+    setTimeout(buildOutput,1800);
+  }
+}
+
+function renderQ(){
+  const qs=T[lang].qs; const d=T[lang];
+  const q=qs[state.q]; const qid=QIDS[state.q];
+  const isLast=state.q===qs.length-1;
+  document.getElementById('prog-fill').style.width=((state.q/qs.length)*100)+'%';
+  document.getElementById('next-btn').textContent=isLast?d.analyze:d.next;
+  document.getElementById('next-btn').disabled=true;
+  document.getElementById('q-box').innerHTML=`
+    <div class="card">
+      <p class="q-num">${String(state.q+1).padStart(2,'0')} / ${qs.length}</p>
+      <p class="q-text">${q.q}</p>
+      <p class="q-hint">${q.hint}</p>
+      <div class="opts">
+        ${q.opts.map(o=>`
+          <button class="opt" onclick="pick('${qid}','${o.v}',this)">
+            <span class="opt-icon">◈</span>
+            <span><span class="opt-label">${o.l}</span><span class="opt-sub">${o.s}</span></span>
+          </button>`).join('')}
+      </div>
+    </div>`;
+}
+
+// ── OUTPUT ────────────────────────────────────────────────
+function buildOutput(){
+  document.getElementById('loading-phase').style.display='none';
+  const {scores,primary,active}=classify();
+  const d=T[lang]; const info=d.content[primary];
+  const out=document.getElementById('output-phase');
+  out.style.display='block';
+
+  const nodes=Object.entries(d.labels).map(([k,label])=>{
+    const s=scores[k];
+    let cls='lo';
+    if(k===primary)cls='hi';
+    else if(active.includes(k))cls='mid';
+    return `<span class="pn ${cls}">${label}</span>`;
+  }).join('');
+
+  const recon=state.recon?`<div class="recon"><strong>${d.reconTitle}</strong>${d.reconBody}</div>`:'';
+
+  const stepsHTML=state.recon
+    ?`<div class="micro">${info.steps.slice(0,3).map(s=>`<div class="mstep"><span style="color:var(--gold);opacity:0.5;flex-shrink:0">◈</span>${s}</div>`).join('')}</div>`
+    :`<ul class="steps">${info.steps.map((s,i)=>`<li><span class="sn">${i+1}</span><span>${s}</span></li>`).join('')}</ul>`;
+
+  out.innerHTML=`
+    ${recon}
+    <div class="card">
+      <p class="s-num">${d.s[0]}</p>
+      <span class="out-tag">${info.tag}</span>
+      <p class="s-head">${info.pt}</p>
+      <p class="s-body">${info.pb}</p>
+      <div class="p-nodes">${nodes}</div>
+    </div>
+    <div class="card">
+      <p class="s-num">${d.s[1]}</p>
+      <p class="s-body">${info.cause}</p>
+    </div>
+    <div class="card">
+      <p class="s-num">${d.s[2]}</p>
+      <p class="s-head">${info.et}</p>
+      ${stepsHTML}
+    </div>
+    <div class="card">
+      <p class="s-num">${d.s[3]}</p>
+      <p class="s-body">${info.strategy}</p>
+    </div>
+    <div class="card">
+      <p class="s-num">${d.s[4]}</p>
+      <div class="reframe">${info.reframe}</div>
+    </div>
+    <div class="card">
+      <p class="input-prompt" style="font-size:1rem;margin-bottom:14px">${d.feedLabel}</p>
+      <textarea class="feed-input" id="feed-txt" placeholder="${d.feedPh}"></textarea>
+      <div class="cf"><button class="btn-gold" onclick="sendFeed()">${d.feedBtn}</button></div>
+      <p class="feed-sent" id="feed-ok">${d.feedOk}</p>
+    </div>
+    <button class="btn-reset" onclick="resetApp()">${d.reset}</button>`;
+
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ── FEEDBACK ──────────────────────────────────────────────
+async function sendFeed(){
+  const msg=document.getElementById('feed-txt').value.trim();
+  if(!msg) return;
+  try{
+    await fetch('https://formspree.io/f/xdkozpvq',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify({message:msg,lang,pattern:classify().primary,email:'neurobia.lab@gmail.com'})
+    });
+  }catch(e){}
+  document.getElementById('feed-txt').style.display='none';
+  document.querySelector('#output-phase .btn-gold:last-of-type') && (document.querySelector('#output-phase .card:last-of-type .btn-gold').style.display='none');
+  document.getElementById('feed-ok').style.display='block';
+}
+
+// ── RESET ─────────────────────────────────────────────────
+function resetApp(){
+  state.input='';state.answers={};state.q=0;state.recon=false;
+  document.getElementById('user-input').value='';
+  document.getElementById('output-phase').style.display='none';
+  document.getElementById('output-phase').innerHTML='';
+  document.getElementById('input-phase').style.display='block';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ── INIT ──────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
 </script>
 </body>
 </html>

@@ -1,738 +1,311 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Neural Map of Failure</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #050810;
-    --surface: #0d1120;
-    --surface2: #131829;
-    --border: rgba(100,130,255,0.15);
-    --accent: #4f6fff;
-    --accent2: #a259ff;
-    --accent3: #00e5b0;
-    --warn: #ff6b4a;
-    --text: #e8eaf6;
-    --muted: #6b7299;
-    --glow: rgba(79,111,255,0.25);
-  }
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Space Mono', monospace;
-    min-height: 100vh;
-    overflow-x: hidden;
-    position: relative;
-  }
-
-  /* Background mesh */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background:
-      radial-gradient(ellipse 60% 40% at 20% 20%, rgba(79,111,255,0.08) 0%, transparent 70%),
-      radial-gradient(ellipse 50% 60% at 80% 80%, rgba(162,89,255,0.06) 0%, transparent 70%),
-      radial-gradient(ellipse 40% 30% at 60% 10%, rgba(0,229,176,0.04) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  /* Noise overlay */
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 0;
-    opacity: 0.4;
-  }
-
-  .container {
-    position: relative;
-    z-index: 1;
-    max-width: 820px;
-    margin: 0 auto;
-    padding: 60px 24px 100px;
-  }
-
-  /* HEADER */
-  header {
-    text-align: center;
-    margin-bottom: 64px;
-  }
-
-  .eyebrow {
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-  }
-
-  .eyebrow::before, .eyebrow::after {
-    content: '';
-    width: 40px;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--accent));
-  }
-  .eyebrow::after { background: linear-gradient(90deg, var(--accent), transparent); }
-
-  h1 {
-    font-family: 'Syne', sans-serif;
-    font-size: clamp(2rem, 6vw, 3.5rem);
-    font-weight: 800;
-    line-height: 1.05;
-    letter-spacing: -0.02em;
-    margin-bottom: 16px;
-  }
-
-  h1 .word-neural { color: var(--text); }
-  h1 .word-map { color: var(--accent); }
-  h1 .word-of { color: var(--muted); font-style: italic; font-weight: 400; }
-  h1 .word-failure {
-    background: linear-gradient(135deg, var(--warn), var(--accent2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .subtitle {
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.7;
-    max-width: 500px;
-    margin: 0 auto;
-  }
-
-  /* NODE PULSE ICON */
-  .brain-icon {
-    width: 56px;
-    height: 56px;
-    margin: 0 auto 24px;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .brain-icon::before {
-    content: '';
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(79,111,255,0.3), transparent 70%);
-    animation: pulse-ring 2.4s ease-in-out infinite;
-  }
-
-  .brain-icon svg { position: relative; z-index: 1; }
-
-  @keyframes pulse-ring {
-    0%, 100% { transform: scale(1); opacity: 0.6; }
-    50% { transform: scale(1.4); opacity: 0.2; }
-  }
-
-  /* INPUT SECTION */
-  .input-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 28px;
-    margin-bottom: 32px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .input-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3));
-  }
-
-  .input-label {
-    font-size: 11px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 12px;
-  }
-
-  textarea {
-    width: 100%;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--text);
-    font-family: 'Space Mono', monospace;
-    font-size: 13px;
-    line-height: 1.7;
-    padding: 16px;
-    resize: none;
-    min-height: 120px;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    outline: none;
-  }
-
-  textarea::placeholder { color: var(--muted); opacity: 0.7; }
-
-  textarea:focus {
-    border-color: rgba(79,111,255,0.5);
-    box-shadow: 0 0 0 3px rgba(79,111,255,0.08);
-  }
-
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 28px;
-    border-radius: 8px;
-    font-family: 'Space Mono', monospace;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    cursor: pointer;
-    border: none;
-    transition: all 0.2s;
-  }
-
-  .btn-primary {
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    color: white;
-    box-shadow: 0 4px 20px rgba(79,111,255,0.3);
-  }
-
-  .btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 28px rgba(79,111,255,0.45);
-  }
-
-  .btn-primary:active { transform: translateY(0); }
-
-  .btn-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  /* QUICK TRIGGERS */
-  .triggers {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 16px;
-  }
-
-  .trigger-chip {
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    padding: 6px 12px;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    transition: all 0.2s;
-    letter-spacing: 0.05em;
-  }
-
-  .trigger-chip:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: rgba(79,111,255,0.06);
-  }
-
-  /* DIAGNOSIS PHASE */
-  #diagnosis-phase {
-    display: none;
-  }
-
-  .diagnosis-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 28px;
-    margin-bottom: 20px;
-    animation: slide-up 0.4s ease forwards;
-  }
-
-  @keyframes slide-up {
-    from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .diagnosis-q {
-    font-family: 'Syne', sans-serif;
-    font-size: 16px;
-    font-weight: 700;
-    margin-bottom: 8px;
-    color: var(--text);
-  }
-
-  .diagnosis-hint {
-    font-size: 11px;
-    color: var(--muted);
-    margin-bottom: 20px;
-    line-height: 1.6;
-  }
-
-  .q-options {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .q-option {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--surface2);
-    cursor: pointer;
-    transition: all 0.2s;
-    font-size: 12px;
-    line-height: 1.5;
-    text-align: left;
-    color: var(--text);
-    font-family: 'Space Mono', monospace;
-  }
-
-  .q-option:hover {
-    border-color: rgba(79,111,255,0.4);
-    background: rgba(79,111,255,0.05);
-  }
-
-  .q-option.selected {
-    border-color: var(--accent);
-    background: rgba(79,111,255,0.1);
-  }
-
-  .q-option .opt-icon {
-    font-size: 18px;
-    flex-shrink: 0;
-    margin-top: 1px;
-  }
-
-  .q-option .opt-text strong {
-    display: block;
-    margin-bottom: 2px;
-    font-size: 12px;
-  }
-
-  .q-option .opt-text span {
-    color: var(--muted);
-    font-size: 10px;
-  }
-
-  .progress-bar {
-    height: 2px;
-    background: var(--surface2);
-    border-radius: 2px;
-    margin-bottom: 24px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    transition: width 0.5s ease;
-  }
-
-  /* LOADING */
-  #loading-phase {
-    display: none;
-    text-align: center;
-    padding: 64px 24px;
-  }
-
-  .neural-loader {
-    width: 80px;
-    height: 80px;
-    margin: 0 auto 28px;
-    position: relative;
-  }
-
-  .nl-node {
-    position: absolute;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--accent);
-  }
-
-  .nl-node:nth-child(1) { top: 0; left: 50%; transform: translateX(-50%); animation: node-pulse 1.6s 0s ease-in-out infinite; }
-  .nl-node:nth-child(2) { top: 25%; right: 0; animation: node-pulse 1.6s 0.2s ease-in-out infinite; background: var(--accent2); }
-  .nl-node:nth-child(3) { bottom: 25%; right: 0; animation: node-pulse 1.6s 0.4s ease-in-out infinite; background: var(--accent3); }
-  .nl-node:nth-child(4) { bottom: 0; left: 50%; transform: translateX(-50%); animation: node-pulse 1.6s 0.6s ease-in-out infinite; }
-  .nl-node:nth-child(5) { bottom: 25%; left: 0; animation: node-pulse 1.6s 0.8s ease-in-out infinite; background: var(--accent2); }
-  .nl-node:nth-child(6) { top: 25%; left: 0; animation: node-pulse 1.6s 1.0s ease-in-out infinite; background: var(--warn); }
-
-  @keyframes node-pulse {
-    0%, 100% { opacity: 0.3; transform: scale(1); }
-    50% { opacity: 1; transform: scale(1.6); box-shadow: 0 0 10px currentColor; }
-  }
-
-  .loading-text {
-    font-size: 12px;
-    color: var(--muted);
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    animation: blink 1.5s ease-in-out infinite;
-  }
-
-  @keyframes blink { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
-
-  /* OUTPUT */
-  #output-phase {
-    display: none;
-  }
-
-  .failure-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    margin-bottom: 6px;
-  }
-
-  .badge-interpretation { background: rgba(255,107,74,0.12); color: var(--warn); border: 1px solid rgba(255,107,74,0.3); }
-  .badge-conceptual { background: rgba(79,111,255,0.12); color: var(--accent); border: 1px solid rgba(79,111,255,0.3); }
-  .badge-execution { background: rgba(0,229,176,0.1); color: var(--accent3); border: 1px solid rgba(0,229,176,0.25); }
-  .badge-emotional { background: rgba(162,89,255,0.12); color: var(--accent2); border: 1px solid rgba(162,89,255,0.3); }
-  .badge-mixed { background: rgba(255,193,7,0.1); color: #ffc107; border: 1px solid rgba(255,193,7,0.25); }
-
-  .output-section {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px 28px;
-    margin-bottom: 16px;
-    position: relative;
-    animation: slide-up 0.5s ease forwards;
-  }
-
-  .output-section:nth-child(2) { animation-delay: 0.1s; opacity: 0; }
-  .output-section:nth-child(3) { animation-delay: 0.2s; opacity: 0; }
-  .output-section:nth-child(4) { animation-delay: 0.3s; opacity: 0; }
-  .output-section:nth-child(5) { animation-delay: 0.4s; opacity: 0; }
-  .output-section:nth-child(6) { animation-delay: 0.5s; opacity: 0; }
-
-  .section-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 10px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 14px;
-    font-weight: 700;
-  }
-
-  .section-label .label-icon {
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-  }
-
-  .section-label .label-num {
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    color: var(--accent);
-    font-weight: 700;
-    flex-shrink: 0;
-  }
-
-  .section-title {
-    font-family: 'Syne', sans-serif;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 10px;
-  }
-
-  .section-body {
-    font-size: 13px;
-    line-height: 1.75;
-    color: rgba(232,234,246,0.82);
-  }
-
-  .section-body strong { color: var(--text); }
-
-  .steps-list {
-    list-style: none;
-    margin-top: 12px;
-  }
-
-  .steps-list li {
-    display: flex;
-    gap: 12px;
-    padding: 10px 0;
-    border-bottom: 1px solid rgba(100,130,255,0.06);
-    font-size: 12px;
-    line-height: 1.6;
-  }
-
-  .steps-list li:last-child { border-bottom: none; }
-
-  .step-num {
-    min-width: 22px;
-    height: 22px;
-    border-radius: 5px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    font-weight: 700;
-    color: var(--accent);
-    flex-shrink: 0;
-    margin-top: 1px;
-  }
-
-  .reframe-box {
-    background: linear-gradient(135deg, rgba(79,111,255,0.06), rgba(162,89,255,0.06));
-    border: 1px solid rgba(162,89,255,0.2);
-    border-radius: 10px;
-    padding: 16px 18px;
-    font-size: 13px;
-    line-height: 1.75;
-    font-style: italic;
-    color: rgba(232,234,246,0.9);
-  }
-
-  .reframe-box::before {
-    content: '"';
-    font-family: 'Syne', sans-serif;
-    font-size: 36px;
-    color: var(--accent2);
-    opacity: 0.4;
-    line-height: 0;
-    vertical-align: -0.3em;
-    margin-right: 4px;
-  }
-
-  /* RECONSTRUCTION MODE */
-  .reconstruction-banner {
-    background: linear-gradient(135deg, rgba(162,89,255,0.1), rgba(79,111,255,0.08));
-    border: 1px solid rgba(162,89,255,0.3);
-    border-radius: 12px;
-    padding: 16px 20px;
-    display: flex;
-    align-items: flex-start;
-    gap: 14px;
-    margin-bottom: 20px;
-    font-size: 12px;
-    line-height: 1.6;
-    color: rgba(232,234,246,0.85);
-  }
-
-  .reconstruction-banner .banner-icon {
-    font-size: 20px;
-    flex-shrink: 0;
-    margin-top: 1px;
-  }
-
-  .reconstruction-banner strong {
-    display: block;
-    font-family: 'Syne', sans-serif;
-    font-size: 13px;
-    color: var(--accent2);
-    margin-bottom: 4px;
-  }
-
-  /* MICRO STEPS */
-  .micro-steps {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 14px;
-  }
-
-  .micro-step {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    background: var(--surface2);
-    border-radius: 8px;
-    border-left: 3px solid var(--accent3);
-    font-size: 12px;
-    line-height: 1.5;
-  }
-
-  .micro-step-circle {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent3);
-    flex-shrink: 0;
-    box-shadow: 0 0 8px var(--accent3);
-  }
-
-  /* PATTERN MAP */
-  .pattern-visual {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 14px;
-  }
-
-  .pattern-node {
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .pn-active { background: rgba(255,107,74,0.15); color: var(--warn); border: 1px solid rgba(255,107,74,0.3); }
-  .pn-primary { background: rgba(79,111,255,0.15); color: var(--accent); border: 1px solid rgba(79,111,255,0.3); }
-  .pn-secondary { background: rgba(0,229,176,0.1); color: var(--accent3); border: 1px solid rgba(0,229,176,0.25); }
-  .pn-inactive { background: rgba(107,114,153,0.1); color: var(--muted); border: 1px solid rgba(107,114,153,0.2); }
-
-  /* RESET */
-  .reset-btn {
-    display: block;
-    width: 100%;
-    text-align: center;
-    padding: 14px;
-    margin-top: 28px;
-    border-radius: 10px;
-    border: 1px dashed var(--border);
-    background: transparent;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .reset-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: rgba(79,111,255,0.04);
-  }
-
-  /* PHASE LABEL */
-  .phase-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 10px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 20px;
-  }
-
-  .phase-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent3);
-    box-shadow: 0 0 6px var(--accent3);
-    animation: dot-blink 1.5s ease infinite;
-  }
-
-  @keyframes dot-blink { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
-
-  /* Responsive */
-  @media (max-width: 600px) {
-    .container { padding: 40px 16px 80px; }
-    h1 { font-size: 2rem; }
-  }
-</style>
-</head>
-<body>
-<div class="container">
-
-  <!-- HEADER -->
-  <header>
-    <div class="brain-icon">
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="16" cy="16" r="3" fill="#4f6fff"/>
-        <circle cx="8" cy="10" r="2" fill="#a259ff"/>
-        <circle cx="24" cy="10" r="2" fill="#00e5b0"/>
-        <circle cx="8" cy="22" r="2" fill="#ff6b4a"/>
-        <circle cx="24" cy="22" r="2" fill="#4f6fff"/>
-        <circle cx="16" cy="5" r="1.5" fill="#a259ff" opacity="0.7"/>
-        <circle cx="16" cy="27" r="1.5" fill="#00e5b0" opacity="0.7"/>
-        <line x1="16" y1="13" x2="10" y2="10" stroke="#4f6fff" stroke-width="0.8" opacity="0.5"/>
-        <line x1="16" y1="13" x2="22" y2="10" stroke="#4f6fff" stroke-width="0.8" opacity="0.5"/>
-        <line x1="16" y1="19" x2="10" y2="22" stroke="#4f6fff" stroke-width="0.8" opacity="0.5"/>
-        <line x1="16" y1="19" x2="22" y2="22" stroke="#4f6fff" stroke-width="0.8" opacity="0.5"/>
-        <line x1="8" y1="12" x2="8" y2="20" stroke="#a259ff" stroke-width="0.8" opacity="0.4"/>
-        <line x1="24" y1="12" x2="24" y2="20" stroke="#00e5b0" stroke-width="0.8" opacity="0.4"/>
-        <line x1="16" y1="6.5" x2="16" y2="13" stroke="#a259ff" stroke-width="0.8" opacity="0.4"/>
-        <line x1="16" y1="19" x2="16" y2="25.5" stroke="#00e5b0" stroke-width="0.8" opacity="0.4"/>
-      </svg>
-    </div>
-    <div class="eyebrow">Neurociência × Aprendizagem × Metacognição</div>
-    <h1>
-      <span class="word-neural">The Neural </span><span class="word-map">Map </span><span class="word-of">of </span><span class="word-failure">Failure</span>
-    </h1>
-    <p class="subtitle">Cada erro é um sinal do seu cérebro. Não é o fim — é o mapa para onde ir a seguir.</p>
-  </header>
-
-  <!-- PHASE 1: INPUT -->
-  <div id="input-phase">
-    <div class="input-card">
-      <div class="input-label">// Compartilhe o que aconteceu</div>
-      <textarea id="user-input" placeholder="Exemplo: &quot;Estudei muito mas reprovei. Sinto que não importa quanto eu me esforce.&quot; ou &quot;Errei todos os exercícios de equações mesmo sabendo a fórmula.&quot;"></textarea>
-      <div class="triggers">
-        <button class="trigger-chip" onclick="fillTrigger('Tirei nota baixa mesmo tendo estudado bastante para a prova.')">📉 Nota baixa</button>
-        <button class="trigger-chip" onclick="fillTrigger('Errei um problema que achei que sabia resolver.')">❌ Problema errado</button>
-        <button class="trigger-chip" onclick="fillTrigger('Tentei de tudo e nada funciona. Estou frustrado.')">😤 Frustração</button>
-        <button class="trigger-chip" onclick="fillTrigger('Travo na hora da prova mesmo sabendo a matéria.')">🔒 Bloqueio</button>
-        <button class="trigger-chip" onclick="fillTrigger('Entendo em casa mas na prova esqueço tudo.')">🧩 Esquecimento</button>
+// ═══════════════════════════════════════════════════════════
+// THE NEURAL MAP OF FAILURE — Motor de Diagnóstico Adaptativo
+// Substitua o <script> existente por este bloco inteiro
+// ═══════════════════════════════════════════════════════════
+
+const state = {
+  userInput: '',
+  answers: {},
+  currentQ: 0,
+  isReconstruction: false,
+};
+
+// ── Perguntas diagnósticas ──────────────────────────────────
+const questions = [
+  {
+    id: 'understanding',
+    q: 'Quando você leu o problema, você entendeu o que estava sendo pedido?',
+    hint: 'Isso diferencia erro de interpretação de erro de conhecimento.',
+    options: [
+      { icon: '✅', label: 'Sim, entendi bem',       sub: 'Sabia exatamente o que a questão pedia',              value: 'yes'     },
+      { icon: '🤔', label: 'Parcialmente',            sub: 'Entendi em parte, mas havia ambiguidade',             value: 'partial' },
+      { icon: '❌', label: 'Não entendi',             sub: 'A questão estava confusa ou mal interpretada',        value: 'no'      },
+    ]
+  },
+  {
+    id: 'concept',
+    q: 'Antes de tentar, você conhecia o conceito ou fórmula necessária?',
+    hint: 'Distingue lacuna conceitual de erro de execução.',
+    options: [
+      { icon: '📚', label: 'Sim, sabia',              sub: 'Conhecia o conceito e achei que sabia aplicar',       value: 'yes'     },
+      { icon: '📖', label: 'Lembrava vagamente',      sub: 'Tinha uma ideia mas não estava seguro(a)',            value: 'partial' },
+      { icon: '🕳️', label: 'Não sabia',              sub: 'O conteúdo era desconhecido ou não estudado',         value: 'no'      },
+    ]
+  },
+  {
+    id: 'execution',
+    q: 'Você cometeu erros de cálculo, sinal ou escrita — mesmo sabendo o método?',
+    hint: 'Erros de execução têm soluções distintas de lacunas conceituais.',
+    options: [
+      { icon: '🎯', label: 'Não — errei antes disso', sub: 'O erro foi no conceito, não no cálculo',             value: 'no'      },
+      { icon: '🔢', label: 'Sim — me enganei no meio', sub: 'Sabia o caminho mas errei a execução',              value: 'yes'     },
+      { icon: '🌀', label: 'Misturei os dois',         sub: 'Houve erros de conceito e de cálculo juntos',       value: 'both'    },
+    ]
+  },
+  {
+    id: 'emotion',
+    q: 'Como você estava emocionalmente durante o estudo ou prova?',
+    hint: 'O estado emocional afeta diretamente a memória de trabalho.',
+    options: [
+      { icon: '😤', label: 'Ansioso(a) ou travado(a)', sub: 'Bloqueio, falta de ar, ou mente em branco',         value: 'anxious'    },
+      { icon: '😩', label: 'Frustrado(a)',              sub: 'Senti que não ia adiantar nada',                   value: 'frustrated' },
+      { icon: '😶', label: 'Neutro(a)',                 sub: 'Sem emoção forte, só executei',                    value: 'neutral'    },
+      { icon: '💪', label: 'Confiante',                 sub: 'Estava bem — o problema foi no conteúdo mesmo',   value: 'confident'  },
+    ]
+  }
+];
+
+// ── Conteúdo adaptativo por padrão ─────────────────────────
+const content = {
+  interpretation: {
+    badgeLabel: 'Falha de Interpretação',
+    patternTitle: 'Padrão: Colapso na decodificação do problema',
+    patternBody: 'Seu cérebro chegou ao conteúdo com energia cognitiva reduzida já na fase de leitura. O <strong>processamento semântico</strong> — converter palavras em estrutura de problema — não ativou os esquemas corretos. Não é falta de inteligência: é falta de prática em "traduzir" linguagem matemática.',
+    cause: 'O erro provavelmente ocorreu <em>antes de qualquer cálculo</em>. A questão usou vocabulário técnico, estrutura indireta ou múltiplas condições que seu sistema de leitura matemática não mapeou corretamente.',
+    explanationTitle: 'O que treinar: leitura matemática ativa',
+    steps: [
+      'Leia o problema em voz alta — isso ativa circuitos diferentes de compreensão',
+      'Sublinhe os dados conhecidos (o que tenho?)',
+      'Circule o que a questão pergunta (o que ela quer?)',
+      'Reformule com suas palavras: "Isso está me pedindo para calcular ___"',
+      'Só então escreva equações',
+    ],
+    strategy: 'Pratique resolução de <strong>enunciados desconhecidos sem resolver</strong> — apenas interpretando. Esse treino fortalece a região pré-frontal responsável por mapear problemas antes de agir. Identifique o tipo de problema antes de lembrar fórmulas.',
+    reframe: 'Você não "errou matemática". Você errou na leitura do código. Isso é muito mais fácil de treinar — e muda rápido com prática deliberada.',
+  },
+  conceptual: {
+    badgeLabel: 'Lacuna Conceitual',
+    patternTitle: 'Padrão: Esquema cognitivo ausente ou frágil',
+    patternBody: 'O erro indica que o <strong>esquema mental</strong> para esse conceito não foi consolidado. Você pode ter visto o conteúdo, mas a representação neural ainda é superficial — ativa de forma errada sob pressão.',
+    cause: 'Você tentou resolver sem o fundamento mental necessário. O conceito foi exposto, mas não integrado. É como montar um móvel sem a peça central: não é falta de esforço, é ausência de um componente-chave.',
+    explanationTitle: 'O que treinar: construção conceitual em camadas',
+    steps: [
+      'Identifique o conceito exato que falhou (não "equações" — qual tipo, qual etapa?)',
+      'Volte ao ponto mais básico que você entende com segurança',
+      'Construa a partir daí com exemplos numéricos simples',
+      'Explique o conceito em voz alta sem olhar o material',
+      'Só avance quando conseguir explicar, não só executar',
+    ],
+    strategy: 'Use <strong>interleaving</strong>: misture esse conceito com outros já aprendidos. O cérebro consolida melhor quando precisa distinguir "quando usar isso" vs "quando usar aquilo". Evite blocos longos do mesmo tipo — alterne intencionalmente.',
+    reframe: 'Lacunas conceituais são normais em qualquer aprendizado não-linear. Não indicam limite intelectual — indicam onde o ensino pulou uma etapa. Você encontrou exatamente onde precisa ir.',
+  },
+  execution: {
+    badgeLabel: 'Erro de Execução',
+    patternTitle: 'Padrão: Colapso na automatização procedimental',
+    patternBody: 'Você sabia o caminho mas não chegou ao destino. O procedimento ainda está no nível <strong>consciente e lento</strong> — o córtex pré-frontal gerencia cada passo, aumentando a carga cognitiva e os erros de slip (deslize).',
+    cause: 'Erros de sinal, cálculo ou escrita sob pressão são sintomas de um procedimento não automatizado. Não é "descuido" — é que o procedimento ainda precisa de atenção ativa, e atenção ativa falha sob carga.',
+    explanationTitle: 'O que treinar: automatização e verificação',
+    steps: [
+      'Pratique o procedimento até que a sequência fique fluida',
+      'Verifique sempre substituindo o resultado de volta na equação original',
+      'Escreva cada passo por extenso — não pule linhas',
+      'Treine com leve pressão de tempo para simular prova',
+      'Use "self-check" verbal: releia cada linha antes de avançar',
+    ],
+    strategy: 'Foque em <strong>prática distribuída</strong> (15 min/dia) em vez de sessões longas. Automatização é construída por repetição espaçada, não por volume. Reduza a complexidade e aumente a velocidade antes de subir o nível.',
+    reframe: 'Você não "não sabe". Você sabe — mas ainda de forma manual. Como aprender a digitar: no começo é lento e cheio de erros. Com repetição, fica fluido. O conceito já está lá.',
+  },
+  emotional: {
+    badgeLabel: 'Bloqueio Emocional',
+    patternTitle: 'Padrão: Interferência do sistema de ameaça no aprendizado',
+    patternBody: 'Quando o cérebro interpreta dificuldade como ameaça, a <strong>amígdala inibe o acesso</strong> ao córtex pré-frontal — onde estão as habilidades de raciocínio e recuperação de memória. Não é fraqueza: é biologia. Mas pode ser reconfigurado.',
+    cause: 'A ansiedade ou frustração ativou o sistema de resposta a ameaça, cortando o acesso ao conhecimento disponível. Você sabia — mas o estado emocional bloqueou a recuperação. Isso explica "estudei e travei na prova".',
+    explanationTitle: 'O que praticar: regulação emocional como técnica de estudo',
+    steps: [
+      'Antes de estudar: 3 respirações lentas (4s entrar, 6s sair) — ativa o nervo vago',
+      'Durante bloqueio: pare, escreva "o que estou sentindo agora" — nomeação reduz ativação da amígdala',
+      'Quebre o problema em partes menores até encontrar algo que consegue fazer',
+      'Recompense micro-progressos — não só o resultado final',
+      'Simule condições de prova progressivamente para reduzir novidade e ameaça',
+    ],
+    strategy: 'Pratique em ambientes de <strong>baixa pressão primeiro</strong>. A exposição gradual ao desconforto recondiciona o medo acadêmico. Crie um "ritual de início de estudo" consistente — o cérebro responde a sinais de segurança.',
+    reframe: 'Seu esforço não foi em vão — ele ficou bloqueado antes de chegar ao desempenho. Isso é diferente de não ter aprendido. O próximo passo não é estudar mais: é estudar com o sistema nervoso regulado.',
+  },
+};
+
+// ── Detecção de frustração ──────────────────────────────────
+function detectFrustration(text) {
+  const keywords = [
+    'nada funciona','não adianta','desisti','cansado','odeio','nunca','sempre erro',
+    'impossível','frustrad','tudo errado','não consigo','tentei tudo','não vale',
+    'esforço','estudei muito','perdi','desânimo','inútil','burro','burra'
+  ];
+  return keywords.some(k => text.toLowerCase().includes(k));
+}
+
+// ── Classificação ───────────────────────────────────────────
+function classify() {
+  const a = state.answers;
+  const s = { interpretation: 0, conceptual: 0, execution: 0, emotional: 0 };
+
+  if (a.understanding === 'no')      s.interpretation += 3;
+  if (a.understanding === 'partial') s.interpretation += 1.5;
+  if (a.concept === 'no')            s.conceptual += 3;
+  if (a.concept === 'partial')       s.conceptual += 1.5;
+  if (a.execution === 'yes')         s.execution += 3;
+  if (a.execution === 'both')      { s.execution += 1.5; s.conceptual += 1; }
+  if (a.emotion === 'anxious')       s.emotional += 3;
+  if (a.emotion === 'frustrated')    s.emotional += 2;
+  if (state.isReconstruction)        s.emotional += 1.5;
+
+  const primary = Object.entries(s).sort((a, b) => b[1] - a[1])[0][0];
+  const active   = Object.entries(s).filter(([, v]) => v > 0).map(([k]) => k);
+  return { scores: s, primary, active };
+}
+
+// ── Funções de navegação ────────────────────────────────────
+function fillTrigger(text) {
+  document.getElementById('user-input').value = text;
+}
+
+function startDiagnosis() {
+  const input = document.getElementById('user-input').value.trim();
+  if (!input) { document.getElementById('user-input').focus(); return; }
+
+  state.userInput         = input;
+  state.answers           = {};
+  state.currentQ          = 0;
+  state.isReconstruction  = detectFrustration(input);
+
+  document.getElementById('input-phase').style.display     = 'none';
+  document.getElementById('diagnosis-phase').style.display = 'block';
+  renderQuestion();
+}
+
+function selectOption(qid, value, el) {
+  state.answers[qid] = value;
+  document.querySelectorAll('.q-option').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('next-btn').disabled = false;
+}
+
+function nextQuestion() {
+  const qid = questions[state.currentQ].id;
+  if (!state.answers[qid]) return;
+
+  state.currentQ++;
+  if (state.currentQ < questions.length) {
+    renderQuestion();
+  } else {
+    finishDiagnosis();
+  }
+}
+
+function finishDiagnosis() {
+  document.getElementById('diagnosis-phase').style.display = 'none';
+  document.getElementById('loading-phase').style.display   = 'block';
+  setTimeout(generateOutput, 1800);
+}
+
+function resetApp() {
+  state.userInput = ''; state.answers = {}; state.currentQ = 0; state.isReconstruction = false;
+  document.getElementById('user-input').value = '';
+  document.getElementById('output-phase').style.display   = 'none';
+  document.getElementById('output-phase').innerHTML       = '';
+  document.getElementById('input-phase').style.display    = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── Render pergunta ─────────────────────────────────────────
+function renderQuestion() {
+  const q        = questions[state.currentQ];
+  const progress = (state.currentQ / questions.length) * 100;
+
+  // Tenta atualizar barra de progresso, se existir no HTML
+  const bar = document.getElementById('progress-fill');
+  if (bar) bar.style.width = progress + '%';
+
+  const container = document.getElementById('question-container');
+  if (!container) return;           // segurança: elemento deve existir no HTML
+
+  container.innerHTML = `
+    <div class="diagnosis-card">
+      <p class="diagnosis-q">${q.q}</p>
+      <p class="diagnosis-hint">${q.hint}</p>
+      <div class="q-options">
+        ${q.options.map(o => `
+          <button class="q-option" onclick="selectOption('${q.id}','${o.value}',this)">
+            <span class="opt-icon">${o.icon}</span>
+            <span class="opt-text">
+              <strong>${o.label}</strong>
+              <span>${o.sub}</span>
+            </span>
+          </button>`).join('')}
       </div>
-    </div>
-    <div style="display:flex; justify-content:flex-end;">
-      <button class="btn btn-primary" onclick="startDiagnosis()">
-        <span>Mapear Neuralmente</span>
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-    </div>
-  </div>
+    </div>`;
 
-  <!-- PHASE 2: DIAGNOSIS -->
-  <div id="diagnosis-phase">
-    <div class="phase-indicator">
+  const btn = document.getElementById('next-btn');
+  if (btn) {
+    btn.disabled   = true;
+    btn.textContent = state.currentQ === questions.length - 1 ? 'Analisar' : 'Próximo →';
+  }
+}
+
+// ── Gerar output ────────────────────────────────────────────
+function generateOutput() {
+  document.getElementById('loading-phase').style.display = 'none';
+
+  const { scores, primary, active } = classify();
+  const info = content[primary];
+
+  const labels = { interpretation:'Interpretação', conceptual:'Conceitual', execution:'Execução', emotional:'Emocional' };
+  const patternNodes = Object.entries(labels).map(([key, label]) => {
+    const s = scores[key];
+    let cls = 'pn-inactive';
+    if (key === primary)         cls = 'pn-active';
+    else if (active.includes(key)) cls = s > 2 ? 'pn-primary' : 'pn-secondary';
+    return `<span class="pattern-node ${cls}">${label} ${s > 0 ? '▲' : '○'}</span>`;
+  }).join('');
+
+  const reconstructionBanner = state.isReconstruction ? `
+    <div class="reconstruction-banner">
+      <span>🔁</span>
+      <div>
+        <strong>Modo Reconstrução Ativado</strong>
+        Detectei frustração elevada. Não vou te sobrecarregar com teoria agora.
+        Vamos em micro-passos — um de cada vez.
+      </div>
+    </div>` : '';
+
+  const stepsList = state.isReconstruction
+    ? `<div class="micro-steps">
+        <div class="micro-step"><div class="micro-dot"></div>Identifique UMA coisa que você consegue fazer nesse assunto — não importa quão pequena.</div>
+        <div class="micro-step"><div class="micro-dot"></div>Faça apenas essa coisa. Complete ela. Isso cria evidência de competência.</div>
+        <div class="micro-step"><div class="micro-dot"></div>Só então expanda — para a próxima peça, não para o problema inteiro.</div>
+      </div>`
+    : `<ul class="steps-list">${info.steps.map((s, i) =>
+        `<li><span class="step-num">${String(i+1).padStart(2,'0')}</span><span>${s}</span></li>`
+      ).join('')}</ul>`;
+
+  const out = document.getElementById('output-phase');
+  out.innerHTML = `
+    ${reconstructionBanner}
+    <div class="output-section">
+      <div class="section-label">01 — Padrão detectado</div>
+      <span class="failure-badge badge-${primary}">${info.badgeLabel}</span>
+      <h3 class="section-title">${info.patternTitle}</h3>
+      <p class="section-body">${info.patternBody}</p>
+      <div class="pattern-visual">${patternNodes}</div>
+    </div>
+    <div class="output-section">
+      <div class="section-label">02 — O que provavelmente causou o erro</div>
+      <p class="section-body">${info.cause}</p>
+    </div>
+    <div class="output-section">
+      <div class="section-label">03 — Explicação adaptada</div>
+      <h3 class="section-title">${info.explanationTitle}</h3>
+      ${stepsList}
+    </div>
+    <div class="output-section">
+      <div class="section-label">04 — Estratégia sugerida</div>
+      <p class="section-body">${info.strategy}</p>
+    </div>
+    <div class="output-section">
+      <div class="section-label">05 — Reframe cognitivo</div>
+      <div class="reframe-box">${info.reframe}</div>
+    </div>
+    <button onclick="resetApp()" class="reset-btn">↩ Analisar outro erro</button>`;
+
+  out.style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}

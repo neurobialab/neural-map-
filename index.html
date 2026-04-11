@@ -1,1 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neural Map of Failure</title>
 
+<style>
+body{
+  background:#06111f;
+  color:#dce8f0;
+  font-family:sans-serif;
+  text-align:center;
+  padding:30px;
+}
+.card{
+  background:#0a1e35;
+  padding:20px;
+  margin:20px auto;
+  max-width:500px;
+  border:1px solid #c9a84c33;
+}
+button{
+  padding:10px;
+  margin-top:10px;
+  background:transparent;
+  color:#c9a84c;
+  border:1px solid #c9a84c;
+}
+textarea{
+  width:100%;
+  height:100px;
+  background:#06111f;
+  color:white;
+}
+.opt{
+  display:block;
+  margin:10px;
+  padding:10px;
+  border:1px solid #444;
+  cursor:pointer;
+}
+.selected{
+  border:1px solid #c9a84c;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Neural Map of Failure</h1>
+
+<div id="input">
+  <div class="card">
+    <p>O que aconteceu?</p>
+    <textarea id="txt"></textarea>
+    <button onclick="start()">Continuar</button>
+  </div>
+</div>
+
+<div id="quiz" style="display:none;"></div>
+
+<div id="result" style="display:none;"></div>
+
+<script>
+
+let step=0;
+let answers={};
+
+const questions=[
+{
+q:"Você entendeu a questão?",
+id:"understanding",
+opts:["sim","mais ou menos","não"]
+},
+{
+q:"Você conhecia o conteúdo?",
+id:"concept",
+opts:["sim","mais ou menos","não"]
+},
+{
+q:"Errou cálculo?",
+id:"execution",
+opts:["sim","não","os dois"]
+},
+{
+q:"Como se sentia?",
+id:"emotion",
+opts:["ansioso","frustrado","tranquilo"]
+}
+];
+
+function start(){
+  document.getElementById("input").style.display="none";
+  document.getElementById("quiz").style.display="block";
+  showQ();
+}
+
+function showQ(){
+  let q=questions[step];
+
+  let html=`<div class="card">
+  <h3>${q.q}</h3>`;
+
+  q.opts.forEach(o=>{
+    html+=`<div class="opt" onclick="select('${q.id}','${o}',this)">${o}</div>`;
+  });
+
+  html+=`<button onclick="next()">Próximo</button></div>`;
+
+  document.getElementById("quiz").innerHTML=html;
+}
+
+function select(id,val,el){
+  answers[id]=val;
+  document.querySelectorAll(".opt").forEach(e=>e.classList.remove("selected"));
+  el.classList.add("selected");
+}
+
+function next(){
+  if(!answers[questions[step].id]) return;
+
+  step++;
+
+  if(step<questions.length){
+    showQ();
+  }else{
+    finish();
+  }
+}
+
+function finish(){
+  document.getElementById("quiz").style.display="none";
+  document.getElementById("result").style.display="block";
+
+  let result="";
+
+  if(answers.emotion==="ansioso"){
+    result="Bloqueio emocional — seu cérebro travou sob pressão.";
+  }else if(answers.concept==="não"){
+    result="Lacuna conceitual — faltou base.";
+  }else if(answers.execution==="sim"){
+    result="Erro de execução — você sabia, mas errou na prática.";
+  }else{
+    result="Falha de interpretação.";
+  }
+
+  document.getElementById("result").innerHTML=
+  `<div class="card">
+  <h2>Diagnóstico:</h2>
+  <p>${result}</p>
+  <button onclick="reset()">Recomeçar</button>
+  </div>`;
+}
+
+function reset(){
+  step=0;
+  answers={};
+  document.getElementById("result").style.display="none";
+  document.getElementById("input").style.display="block";
+}
+
+</script>
+
+</body>
+</html>
